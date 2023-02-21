@@ -49,6 +49,36 @@ const loginUser = asyncHandler(async (req,res)=>{
     }
 })
 
+//admin user login
+const loginAdmin = asyncHandler(async (req,res)=>{
+    const {email,password} = req.body
+
+    const findAdmin = await User.findOne({email})
+    if(findAdmin.role !== 'admin') throw new Error("Not Authorized")
+    if(findAdmin && await findAdmin.isPasswordMatched(password)){
+        const refreshToken = await generateRefreshToken(findAdmin?._id)
+       const updateuser = await User.findByIdAndUpdate(findAdmin?.id,{
+        refreshToken:refreshToken
+       },{
+        new:true
+       })
+       res.cookie('refreshToken',refreshToken,{
+        httpOnly:true,
+        maxAge:72*60*60*1000
+       })
+        res.json({
+        _id:findAdmin?._id,
+        firstname:findAdmin?.firstname,
+        lastname:findAdmin?.lastname,
+        email:findAdmin?.email,
+        mobile:findAdmin?.mobile,
+        token:generateToken(findAdmin?._id)
+       })
+    }else{
+        throw new Error("Invalid credentials")
+    }
+})
+
 const handleRefreshToken = asyncHandler(async (req,res)=>{
 const cookie = req.cookies
 if(!cookie?.refreshToken) throw new Error("No Refresh Token in Cookies")
@@ -244,12 +274,45 @@ res.json(user)
 
   })
 
+  const getWishlist = asyncHandler(async(req,res)=>{
+const {_id} = req.user;
+
+    try{
+        const findUser = await User.findById(_id).populate('wishlist')
+        res.json(findUser)
+
+
+    }catch(err){
+        throw new Error(err)
+    }
+  })
+
+  const saveAddress = asyncHandler(async(req,res,next)=>{
+    const {_id} = req.user
+    validateMongodbid(_id)
+      try{
+      const userAddress = await User.findByIdAndUpdate(_id,{
+        address:req?.body?.address,
+      },{
+        new:true
+      })
+      res.json({
+        message:"User address added successfully",
+        userAddress
+      })
+      }catch(err){
+          throw new Error(err)
+      }
+  })
+
 
 module.exports = { createUser,loginUser,
     getAllUser,getaUser,
     deleteUser,updateUser,
     unBlockUser,blockUser,
     handleRefreshToken,logout,
-    updatePassword,forgotPasswordToken,resetPassword
+    updatePassword,forgotPasswordToken,resetPassword,
+    loginAdmin,getWishlist,
+    saveAddress
 
 }
